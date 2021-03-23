@@ -1,29 +1,60 @@
 module Main where
 
 import           Control.Monad
+import           Data.Char
+import           Data.Maybe
 import           Lib
 import           System.IO
-import           Text.Read     (readMaybe)
+import           System.Exit
+import           Text.Read
 
--- Formulate the output text for a given chain of numbers
-response :: (Show a, Eq a, Num a) => [a] -> String
-response [4]    = "4 is the magic number~"
-response [x]    = show x ++ "is the magic number?" -- this one shouldn't happen
-response [x, y] = show x ++ " is " ++ show y ++ ", and " ++ response [y]
-response (x:xs) = show x ++ " is " ++ response xs
+data Action = Quit | DoNothing | Respond
+
+main :: IO ()
+main = do
+  putStrLn
+    "Welcome to the magic number game! You can type 'quit' to quit. Enter your numbers below:"
+  forever loop
+
+loop :: IO ()
+loop = do
+  line <- prompt "\n > "
+  let respondTo =
+        putStrLn
+          . maybe "That number didn't work! Are you sure it was an integer?"
+                  (chainResponse . chain)
+          . readMaybe
+
+  case findIntent line of
+    Quit      -> exitSuccess
+    DoNothing -> return ()
+    Respond   -> respondTo line
 
 -- Get user input with an inline prompt, similar to ghci
 prompt :: String -> IO String
 prompt text = do
-    putStr text
-    hFlush stdout
-    getLine
+  putStr text
+  hFlush stdout
+  getLine
 
-main :: IO ()
-main = do
-  putStrLn "Welcome to the magic number game! Enter your numbers below:"
-  forever $ do
-    line <- prompt "\n > "
-    case readMaybe line of
-      Just n  -> putStrLn . response . chain $ n
-      Nothing -> putStrLn "That number didn't work! Was it an integer?"
+-- Figure out what the user input wants the program to do
+findIntent :: String -> Action
+findIntent str | null str         = DoNothing
+               | low == "q"       = Quit
+               | low == "quit"    = Quit
+               | low == "exit"    = Quit
+               | low == "leave"   = Quit
+               | low == "goodbye" = Quit
+               | otherwise        = Respond
+ where
+  low       = map toLower firstWord
+  firstWord = fromMaybe "" . listToMaybe . words $ str
+
+-- Formulate the output text for a given chain of numbers
+chainResponse :: (Show a, Eq a, Num a) => [a] -> String
+chainResponse [4] = "4 is the magic number~"
+chainResponse [x] =
+  show x ++ "is the magic number? something may have gone wrong here"
+chainResponse [x, y] =
+  show x ++ " is " ++ show y ++ ", and " ++ chainResponse [y]
+chainResponse (x : xs) = show x ++ " is " ++ chainResponse xs
